@@ -1,35 +1,45 @@
-mod modules;
-
+extern crate core;
 
 use std::fs::File;
 use std::io::Read;
-use axum::{
-    routing::{get, post},
-    http::StatusCode,
-    response::IntoResponse,
-    Json, Router,
-};
-use serde::{Deserialize, Serialize};
 use std::net::SocketAddr;
-
 use std::str::FromStr;
+use std::time::Duration;
+use axum::{Extension, http::StatusCode, Json, response::IntoResponse, Router, routing::{get, post}};
+use colored::Colorize;
+use rbatis::Rbatis;
+use rbatis::rbdc::db::Driver;
+use rbdc_mssql::driver::MssqlDriver;
+use rbdc_mysql::driver::MysqlDriver;
+use rbdc_pg::driver::PgDriver;
+use rbdc_sqlite::driver::SqliteDriver;
+use serde::{Deserialize, Serialize};
+use tower::ServiceBuilder;
+use tracing::log;
+use tracing_subscriber::fmt::format;
+
+use crate::modules::config::configs::GLOBAL_CONFIGS;
+use crate::modules::user::model::sys_user::SysUser;
+use crate::my_env::print_banner;
+
+mod modules;
+mod my_env;
 
 #[tokio::main]
 async fn main() {
-    let configs = load_config();
-    // initialize tracing
+    print_banner();
+    let mut db: Rbatis = init_db().await;
+    let x = &mut db;
+    let vec = SysUser::select_all(&mut db).await.unwrap();
+
     tracing_subscriber::fmt::init();
-
-    // build our application with a route
     let app = Router::new()
-        // `GET /` goes to `root`
         .route("/", get(root))
-        // `POST /users` goes to `create_user`
-        .route("/users", post(create_user));
-
-    // run our app with hyper
-    // `axum::Server` is a re-export of `hyper::Server`
-    let address = format!("{}:{}",configs.server.address.as_str(), configs.server.port.to_string().as_str());
+        .layer(
+            ServiceBuilder::new()
+                .layer(Extension(Box::new(db))),
+        );
+    let address = format!("{}:{}",GLOBAL_CONFIGS.server.address.as_str(), GLOBAL_CONFIGS.server.port.to_string().as_str());
     let addr = SocketAddr::from_str(address.as_str()).unwrap();
     tracing::info!("listening on {}", addr);
     axum::Server::bind(&addr)
@@ -37,52 +47,18 @@ async fn main() {
         .await
         .unwrap();
 }
-// basic handler that responds with a static string
-async fn root() -> &'static str {
-    "Hello, World!"
-}
 
-async fn create_user(
-    // this argument tells axum to parse the request body
-    // as JSON into a `CreateUser` type
-    Json(payload): Json<CreateUser>,
-) -> impl IntoResponse {
-    // insert your application logic here
-    let user = User {
-        id: 1337,
-        username: payload.username,
+async fn root(Extension(mut db): Extension<Box<Rbatis>>) -> impl IntoResponse {
+    Json(SysUser::select_all(db.as_mut()).await.unwrap())
+}
+async fn init_db() -> Rbatis {
+    let rb = Rbatis::new();
+    match &GLOBAL_CONFIGS.database.db_driver.clone() as &str {
+        "sqlite" => rb.init(SqliteDriver{}, GLOBAL_CONFIGS.database.url.as_str()).unwrap(),
+        "mysql" => rb.init(MysqlDriver{}, GLOBAL_CONFIGS.database.url.as_str()).unwrap(),
+        "mssql" => rb.init(MssqlDriver {}, GLOBAL_CONFIGS.database.url.as_str()).unwrap(),
+        "pg" => rb.init(PgDriver {}, GLOBAL_CONFIGS.database.url.as_str()).unwrap(),
+        s => panic!("not supported {} driver!", s)
     };
-
-    // this will be converted into a JSON response
-    // with a status code of `201 Created`
-    (StatusCode::CREATED, Json(user))
-}
-
-// the input to our `create_user` handler
-#[derive(Deserialize)]
-struct CreateUser {
-    username: String,
-}
-
-// the output to our `create_user` handler
-#[derive(Serialize)]
-struct User {
-    id: u64,
-    username: String,
-}
-fn load_config() -> modules::config::configs::Configs {
-    let mut config_path = String::from("Config.toml");
-    if let Some(s) = std::env::var_os("ESM_CONFIG_PATH").as_mut() {
-        config_path = s.to_str().unwrap_or_default().to_string();
-    }
-    let mut file= match File::open(config_path.as_str()) {
-        Ok(f) => f,
-        Err(e) => panic!("配置文件不存在 错误信息：{}", e),
-    };
-    let mut cfg_contents = String::new();
-    match file.read_to_string(&mut cfg_contents) {
-        Ok(s) => s,
-        Err(e) => panic!("读取配置文件失败，错误信息：{}", e),
-    };
-    toml::from_str(&cfg_contents).expect("无法解析配置文件!")
+    rb
 }

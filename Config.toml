@@ -1,3 +1,6 @@
 [server]
 address = "127.0.0.1"
 port = 3002
+[database]
+db_driver = "sqlite"
+url = "sqlite:./data.db?mode=rwc"
