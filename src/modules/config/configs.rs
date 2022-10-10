@@ -12,6 +12,7 @@ pub struct AppConfig {
 pub struct Server {
     pub address: String,
     pub port: u16,
+    pub jwt_secret: String,
 }
 #[derive(Debug, Deserialize)]
 pub struct Database {

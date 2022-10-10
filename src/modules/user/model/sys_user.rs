@@ -1,4 +1,4 @@
-use rbatis::crud;
+use rbatis::{crud, impl_select};
 use rbatis::rbdc::datetime::FastDateTime;
 use serde::{Deserialize, Serialize};
 
@@ -11,3 +11,4 @@ pub struct SysUser {
     pub created_at: Option<FastDateTime>,
 }
 crud!(SysUser{});
+impl_select!(SysUser{select_by_username_password(username:&str,password:&str) -> Option => "`where username = #{username} and password = #{password} limit 1`"});
