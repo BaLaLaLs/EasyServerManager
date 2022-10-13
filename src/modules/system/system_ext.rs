@@ -13,9 +13,8 @@ use sysinfo::{Component, Disk, Process, System, Cpu, SystemExt, Pid, LoadAvg, Ne
 /// `sysinfo` with extended features
 #[derive(Debug)]
 pub struct SysInfoExt<'a> {
-    // process_list: &'a HashMap<Pid, Process>,
+    processes: Vec<&'a Process>,
     cpu_list: &'a [Cpu],
-    // disks: &'a [Disk],
     hostname: String,
     up_time: u64,
     pub system_name: String,
@@ -47,12 +46,11 @@ struct Network<'a> {
 impl<'a> SysInfoExt<'a> {
     pub fn new(system: &'a System) -> Self {
         SysInfoExt {
-            // process_list: system.processes().deref(),
+            processes: system.processes().iter().map(|i| i.1).collect(),
             cpu_list: system.cpus(),
             system_name: system.name().unwrap_or("Unknown".to_owned()),
             up_time: system.uptime(),
             hostname: system.host_name().unwrap_or("Unknown".to_owned()),
-            // bandwith: (network.get_income(), network.get_outcome()),
             system_kernel_version: system.kernel_version().unwrap_or("Unknown".to_owned()),
             os_version: system.os_version().unwrap_or("Unknown".to_owned()),
             long_os_version: system.long_os_version().unwrap_or("Unknown".to_owned()),
@@ -94,6 +92,7 @@ impl<'a> Serialize for SysInfoExt<'a> {
         map.serialize_entry("disks", &self.disks.iter().map(|d| Ser::new(d)).collect::<Vec<Ser<Disk>>>()).unwrap();
         map.serialize_entry("load_avg", &Ser::new(&self.load_avg)).unwrap();
         map.serialize_entry("networks", &self.networks).unwrap();
+        map.serialize_entry("processes", &self.processes.iter().map(|p| Ser::new(p.deref())).collect::<Vec<Ser<Process>>>()).unwrap();
         map.end()
     }
 }

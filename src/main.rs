@@ -104,6 +104,6 @@ async fn handle_socket(mut socket: WebSocket) {
             println!("client disconnected");
             return;
         }
-        tokio::time::sleep(Duration::from_secs(3)).await;
+        tokio::time::sleep(Duration::from_secs(1)).await;
     }
 }

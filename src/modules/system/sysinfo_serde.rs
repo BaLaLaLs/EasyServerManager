@@ -1,6 +1,6 @@
 use serde::{Serialize, Serializer};
 use serde::ser::SerializeMap;
-use sysinfo::{Cpu, CpuExt, Disk, DiskExt, DiskType, LoadAvg, Networks, NetworksExt};
+use sysinfo::{Cpu, CpuExt, Disk, DiskExt, DiskType, LoadAvg, Networks, NetworksExt, Pid, PidExt, Process, ProcessExt, Uid};
 
 
 pub fn serialize<T, S>(value: &T, serializer: S) -> Result<S::Ok, S::Error>
@@ -70,7 +70,43 @@ impl<'a> Serialize for Ser<'a, Networks> {
         where S: Serializer
     {
         let mut map = serializer.serialize_map(None)?;
+        map.end()
+    }
+}
+
+impl<'a> Serialize for Ser<'a, Process> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        let mut map = serializer.serialize_map(None)?;
+        map.serialize_entry("name", &self.0.name())?;
+        map.serialize_entry("cpu_usage", &self.0.cpu_usage())?;
+        map.serialize_entry("cmd", &self.0.cmd())?;
+        map.serialize_entry("exe", &self.0.exe())?;
+        map.serialize_entry("environ", &self.0.environ())?;
+        map.serialize_entry("cwd", &self.0.cwd())?;
+        map.serialize_entry("root", &self.0.root())?;
+        map.serialize_entry("memory", &self.0.memory())?;
+        // map.serialize_entry("user_id", &Ser::new(self.0.user_id().unwrap()))?;
+        // map.serialize_entry("cmd", &self.0.cmd())?;
+        // map.serialize_entry("cmd", &self.0.cmd())?;
+        // map.serialize_entry("cmd", &self.0.cmd())?;
+        // map.serialize_entry("cmd", &self.0.cmd())?;
 
         map.end()
+    }
+}
+impl<'a> Serialize for Ser<'a, Pid> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        self.0.as_u32().serialize(serializer)
+    }
+}
+impl<'a> Serialize for Ser<'a, Uid> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+        where S: Serializer
+    {
+        self.0.serialize(serializer)
     }
 }
